@@ -59,7 +59,15 @@ const GROUP_COLORS = {
   E: "#c0392b", F: "#27ae60", G: "#d35400", H: "#f39c12",
 };
 
-const DICE_FACES = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+// 出目→キューブの向き（f1=前面, f2=右, f3=上, f4=下, f5=左, f6=背面）
+const DIE_ORIENT = {
+  1: "rotateX(0deg) rotateY(0deg)",
+  2: "rotateY(-90deg)",
+  3: "rotateX(-90deg)",
+  4: "rotateX(90deg)",
+  5: "rotateY(90deg)",
+  6: "rotateY(180deg)",
+};
 
 // ---------- 盤面定義（32マス・時計回り） ----------
 function buildTiles() {
@@ -157,7 +165,11 @@ function log(msg, strong = false) {
 }
 
 function centerMsg(msg) {
-  $("center-msg").textContent = msg;
+  const el = $("center-msg");
+  el.textContent = msg;
+  el.classList.remove("pop");
+  void el.offsetWidth; // アニメーション再トリガー
+  if (msg) el.classList.add("pop");
 }
 
 // モーダルで選択肢を表示し、選ばれた値を返す
@@ -263,6 +275,7 @@ function playerCities(player) {
 function gainMoney(p, amount) {
   p.money += amount;
   log(`${p.emoji} ${p.name} が ${fmt(amount)} を獲得`);
+  floatText(p.pos, `+${fmt(amount)}`, "#ffe96b");
   renderPlayers();
 }
 
@@ -292,8 +305,10 @@ async function settle(p, amount, receiver) {
   }
   const paid = Math.min(p.money, amount);
   p.money -= paid;
+  floatText(p.pos, `-${fmt(paid)}`, "#ff8a7a");
   if (receiver) {
     receiver.money += paid;
+    if (receiver.pos !== p.pos) floatText(receiver.pos, `+${fmt(paid)}`, "#ffe96b");
     log(`${p.emoji} ${p.name} → ${receiver.emoji} ${receiver.name} に ${fmt(paid)} 支払い`);
   } else {
     log(`${p.emoji} ${p.name} が ${fmt(paid)} を支払い`);
@@ -317,6 +332,51 @@ function bankrupt(p) {
 }
 
 // ---------- 描画 ----------
+// CSS 3D の直方体（屋上面＋四方の壁）。w/d はタイルに対する%、h/z はpx
+function boxHTML(cls, w, d, h, z) {
+  return `<div class="box ${cls}" style="--w:${w};--d:${d};--h:${h}px;--z:${z}px">` +
+    `<i class="bf top"></i><i class="bf front"></i><i class="bf back"></i>` +
+    `<i class="bf left"></i><i class="bf right"></i></div>`;
+}
+
+// レベル別の建物（別荘→ビル→ホテル→ランドマーク）
+function buildingHTML(level) {
+  if (level <= 0) return "";
+  let h = `<div class="bld lv${level}">`;
+  if (level === 1) {
+    h += boxHTML("b-villa-body", "42%", "36%", 16, 0);
+    h += boxHTML("b-villa-roof", "52%", "46%", 8, 16);
+  } else if (level === 2) {
+    h += boxHTML("b-bldg", "38%", "32%", 30, 0);
+    h += boxHTML("b-cap", "28%", "24%", 4, 30);
+  } else if (level === 3) {
+    h += boxHTML("b-hotel-base", "54%", "42%", 13, 0);
+    h += boxHTML("b-hotel-tower", "36%", "29%", 30, 13);
+    h += boxHTML("b-cap", "24%", "20%", 5, 43);
+  } else {
+    h += boxHTML("b-lm-base", "56%", "44%", 12, 0);
+    h += boxHTML("b-lm-mid", "40%", "32%", 22, 12);
+    h += boxHTML("b-lm-spire", "22%", "18%", 26, 34);
+    h += boxHTML("b-lm-tip", "11%", "9%", 9, 60);
+  }
+  return h + "</div>";
+}
+
+// 盤面上に浮かぶお金の増減テキスト
+function floatText(tileIdx, text, color) {
+  const tileEl = $(`tile-${tileIdx}`);
+  if (!document.body || !tileEl || !tileEl.getBoundingClientRect) return;
+  const r = tileEl.getBoundingClientRect();
+  const fx = document.createElement("div");
+  fx.className = "float-money";
+  fx.textContent = text;
+  fx.style.left = `${r.left + r.width / 2}px`;
+  fx.style.top = `${r.top}px`;
+  fx.style.color = color;
+  document.body.appendChild(fx);
+  setTimeout(() => fx.remove(), 1400);
+}
+
 function renderBoard() {
   const board = $("board");
   board.innerHTML = "";
@@ -348,6 +408,7 @@ function renderTile(i) {
   let stand = "";
   let topStyle = "";
 
+  let building = "";
   if (tile.type === "city") {
     div.classList.add("city");
     const c = GROUP_COLORS[tile.group];
@@ -359,7 +420,8 @@ function renderTile(i) {
       topStyle += `;outline-color:${owner.color}`;
       inner += `<div class="tile-sub">${fmt(tollOf(tile))}</div>`;
       inner += `<div class="owner-dot" style="background:${owner.color}"></div>`;
-      stand += `<span class="build lv${tile.level}">${LEVEL_ICONS[tile.level]}</span>`;
+      inner += `<div class="lv-flat">${LEVEL_ICONS[tile.level]}</div>`;
+      building = buildingHTML(tile.level);
     } else {
       inner += `<div class="tile-sub">${fmt(tile.price)}</div>`;
     }
@@ -368,17 +430,18 @@ function renderTile(i) {
     const icons = { start: "🏁", chance: "🎁", island: "🏝️", olympic: "🔥", travel: "✈️", tax: "🏛️" };
     div.classList.add(["start", "island", "olympic", "travel"].includes(tile.type) ? "corner" : "special");
     inner += `<div class="tile-name">${tile.name}</div>`;
-    inner += `<div class="tile-icon">${icons[tile.type]}</div>`;
+    stand += `<span class="sicon">${icons[tile.type]}</span>`;
   }
 
   const tokens = state.players
     .filter((p) => p.alive && p.pos === i)
-    .map((p) => p.emoji)
+    .map((p) => `<span class="tok" style="--tc:${p.color}">${p.emoji}</span>`)
     .join("");
   if (tokens) stand += `<span class="tokens">${tokens}</span>`;
 
   div.innerHTML =
     `<div class="tile-top" style="${topStyle}">${inner}</div>` +
+    building +
     `<div class="stand">${stand}</div>`;
 }
 
@@ -403,12 +466,15 @@ function renderPlayers() {
     const status = !p.alive ? "💥 破産"
       : p.islandTurns > 0 ? `🏝️ ${p.islandTurns}回休み`
       : p.human ? "あなた" : "CPU";
+    if (!state.prevMoney) state.prevMoney = {};
+    const flash = state.prevMoney[p.id] !== undefined && state.prevMoney[p.id] !== p.money;
+    state.prevMoney[p.id] = p.money;
     card.innerHTML = `
       <div class="hud-rank r${rank}">${rank}位</div>
       <div class="hud-avatar" style="border-color:${p.color}">${p.emoji}</div>
       <div class="hud-info">
         <div class="hud-name">${p.name}<span>${status}</span></div>
-        <div class="hud-money">💵 ${fmt(p.money)}</div>
+        <div class="hud-money${flash ? " flash" : ""}">💵 ${fmt(p.money)}</div>
         <div class="hud-assets">総資産 ${fmt(totalAssets(p))} ／ 🏙️ ${playerCities(p).length}都市</div>
       </div>`;
     hud.appendChild(card);
@@ -438,23 +504,20 @@ function weightedFace(bias, power) {
 }
 
 async function rollDice(gauge, p) {
-  const d1 = $("die1"), d2 = $("die2");
-  d1.classList.add("rolling");
-  d2.classList.add("rolling");
-  for (let i = 0; i < 8; i++) {
-    d1.textContent = DICE_FACES[1 + rand(6)];
-    d2.textContent = DICE_FACES[1 + rand(6)];
-    await wait(70);
-  }
+  const c1 = $("cube1"), c2 = $("cube2");
+  c1.className = "cube spin-a";
+  c2.className = "cube spin-b";
+  await wait(650);
   const bias = (gauge - 0.5) * 2;
   const power = statOf(p, "gaugePower");
   const a = weightedFace(bias, power);
   let b = weightedFace(bias, power);
   if (a !== b && Math.random() < statOf(p, "doubleBoost")) b = a; // キャラ能力：ゾロ目補正
-  d1.textContent = DICE_FACES[a];
-  d2.textContent = DICE_FACES[b];
-  d1.classList.remove("rolling");
-  d2.classList.remove("rolling");
+  c1.className = "cube";
+  c2.className = "cube";
+  c1.style.transform = DIE_ORIENT[a];
+  c2.style.transform = DIE_ORIENT[b];
+  await wait(480);
   return [a, b];
 }
 
