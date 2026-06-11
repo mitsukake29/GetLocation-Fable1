@@ -293,17 +293,17 @@ body {
   box-shadow: 0 0 16px #ff3b30, inset 0 -5px 9px rgba(0,0,0,0.22);
 }
 
-.owner-dot {
+/* 所有マス上端に残すライン（同色グループ）の帯 */
+.gband {
   position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 0 3px rgba(0,0,0,0.5);
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
-.olympic-mark { position: absolute; top: 2px; left: 3px; font-size: 12px; }
+.tile.owned .tile-top { padding-top: 9%; }
+.olympic-mark { position: absolute; top: 6px; left: 3px; font-size: 12px; }
 .lv-flat { display: none; font-size: 13px; }
 
 /* ===== CSS 3D 建物 ===== */
@@ -327,7 +327,7 @@ body {
 
 .box {
   position: absolute;
-  left: 50%;
+  left: calc(50% + var(--ox, 0%));
   top: 56%;
   width: var(--w);
   height: var(--d);
@@ -335,68 +335,42 @@ body {
   transform-style: preserve-3d;
 }
 .bf { position: absolute; }
-.bf.top { inset: 0; }
-.bf.front { left: 0; right: 0; top: 100%; height: var(--h); transform: rotateX(-90deg); transform-origin: top; }
-.bf.back { left: 0; right: 0; bottom: 100%; height: var(--h); transform: rotateX(90deg); transform-origin: bottom; }
-.bf.left { top: 0; bottom: 0; right: 100%; width: var(--h); transform: rotateY(-90deg); transform-origin: right; }
-.bf.right { top: 0; bottom: 0; left: 100%; width: var(--h); transform: rotateY(90deg); transform-origin: left; }
-
-/* 別荘：クリーム壁＋赤屋根 */
-.b-villa-body .bf.top { background: #f3e6c8; }
-.b-villa-body .bf.front { background: linear-gradient(180deg, #f7ecd2, #d9c69a); }
-.b-villa-body .bf.back, .b-villa-body .bf.left, .b-villa-body .bf.right { background: #cdb88c; }
-.b-villa-roof .bf.top { background: linear-gradient(135deg, #e85a48, #c23a28); border-radius: 2px; }
-.b-villa-roof .bf.front { background: #a82e1e; }
-.b-villa-roof .bf.back, .b-villa-roof .bf.left, .b-villa-roof .bf.right { background: #93281a; }
-
-/* ビル：ガラス張りの窓 */
-.b-bldg .bf.top { background: #b8cdd8; }
-.b-bldg .bf.front {
-  background:
-    repeating-linear-gradient(180deg, rgba(255,255,255,0.5) 0 2px, transparent 2px 6px),
-    linear-gradient(180deg, #7fb2d4, #3d6f96);
+/* 面の色は --ct（屋上）/ --cs（壁）で指定し、向きごとの明暗で立体感を出す */
+.bf.top { inset: 0; background: var(--ct, #ddd); }
+.bf.front {
+  left: 0; right: 0; top: 100%; height: var(--h);
+  transform: rotateX(-90deg); transform-origin: top;
+  background: var(--cs, #aaa);
+  filter: brightness(1.18);
 }
-.b-bldg .bf.back, .b-bldg .bf.left, .b-bldg .bf.right {
-  background:
-    repeating-linear-gradient(180deg, rgba(255,255,255,0.28) 0 2px, transparent 2px 6px),
-    #346087;
+.bf.back {
+  left: 0; right: 0; bottom: 100%; height: var(--h);
+  transform: rotateX(90deg); transform-origin: bottom;
+  background: var(--cs, #aaa);
+  filter: brightness(0.7);
 }
-.b-cap .bf.top { background: #e8eef2; }
-.b-cap .bf.front, .b-cap .bf.back, .b-cap .bf.left, .b-cap .bf.right { background: #b9c5cd; }
-
-/* ホテル：暖色タワー */
-.b-hotel-base .bf.top { background: #f4d9b0; }
-.b-hotel-base .bf.front { background: linear-gradient(180deg, #efc88e, #cf9f5d); }
-.b-hotel-base .bf.back, .b-hotel-base .bf.left, .b-hotel-base .bf.right { background: #c2924f; }
-.b-hotel-tower .bf.top { background: #f7e3c2; }
-.b-hotel-tower .bf.front {
-  background:
-    repeating-linear-gradient(180deg, rgba(255, 244, 200, 0.75) 0 2px, transparent 2px 6px),
-    linear-gradient(180deg, #e08a4e, #b35f24);
+.bf.left {
+  top: 0; bottom: 0; right: 100%; width: var(--h);
+  transform: rotateY(-90deg); transform-origin: right;
+  background: var(--cs, #aaa);
+  filter: brightness(0.88);
 }
-.b-hotel-tower .bf.back, .b-hotel-tower .bf.left, .b-hotel-tower .bf.right {
-  background:
-    repeating-linear-gradient(180deg, rgba(255, 244, 200, 0.4) 0 2px, transparent 2px 6px),
-    #a05420;
+.bf.right {
+  top: 0; bottom: 0; left: 100%; width: var(--h);
+  transform: rotateY(90deg); transform-origin: left;
+  background: var(--cs, #aaa);
+  filter: brightness(0.88);
 }
 
-/* ランドマーク：黄金のタワー */
-.b-lm-base .bf.top { background: #f5e3b0; }
-.b-lm-base .bf.front { background: linear-gradient(180deg, #ecd28e, #c9a753); }
-.b-lm-base .bf.back, .b-lm-base .bf.left, .b-lm-base .bf.right { background: #b8954a; }
-.b-lm-mid .bf.top { background: #ffe9a8; }
-.b-lm-mid .bf.front {
-  background:
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0 2px, transparent 2px 5px),
-    linear-gradient(180deg, #f0c75e, #cf9c2e);
+/* 窓ストライプ */
+.box.win .bf.front, .box.win .bf.back, .box.win .bf.left, .box.win .bf.right {
+  background-image: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0 2px, transparent 2px 6px);
 }
-.b-lm-mid .bf.back, .b-lm-mid .bf.left, .b-lm-mid .bf.right { background: #ba8c28; }
-.b-lm-spire .bf.top { background: #fff3c4; }
-.b-lm-spire .bf.front { background: linear-gradient(180deg, #ffd96e, #d9a832); }
-.b-lm-spire .bf.back, .b-lm-spire .bf.left, .b-lm-spire .bf.right { background: #c1922c; }
-.b-lm-tip .bf.top,
-.b-lm-tip .bf.front, .b-lm-tip .bf.back, .b-lm-tip .bf.left, .b-lm-tip .bf.right {
-  background: #fff0b0;
+/* 丸み（ドーム・塔身など） */
+.box.round .bf.top { border-radius: 50%; }
+.box.round .bf.front, .box.round .bf.back { border-radius: 0 0 40% 40% / 0 0 24% 24%; }
+/* 発光（ランドマークの頂部など） */
+.box.glow .bf {
   box-shadow: 0 0 10px 3px rgba(255, 226, 120, 0.95);
   animation: lmGlow 1.6s ease-in-out infinite alternate;
 }
