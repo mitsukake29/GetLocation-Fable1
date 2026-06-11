@@ -20,12 +20,39 @@ const UPGRADE_RATE = [0, 0, 0.6, 1.0, 1.4];
 const TOLL_RATE = [0, 0.4, 1.0, 2.0, 4.0];
 const MAX_LEVEL = 4;
 
+// 日本の偉人キャラクター。stats が内部数値（本家のキャラカード能力に相当）
+const DEFAULT_STATS = {
+  buyRate: 1,      // 購入・増築・買収費の倍率（小さいほど得）
+  tollGain: 1,     // 受け取る通行料の倍率
+  tollPay: 1,      // 支払う通行料の倍率（小さいほど得）
+  salaryRate: 1,   // 給料の倍率
+  islandEscape: 0, // 無人島からゾロ目以外で脱出できる確率
+  gaugePower: 1,   // ゲージインパクトの効きの強さ
+  doubleBoost: 0,  // ゾロ目になる追加確率
+};
+
 const CHARACTERS = [
-  { name: "クマきち", emoji: "🐻" },
-  { name: "ウサ姫", emoji: "🐰" },
-  { name: "ピヨ太", emoji: "🐤" },
-  { name: "ケロ蔵", emoji: "🐸" },
+  { name: "織田信長", emoji: "⚔️", title: "天下布武",
+    desc: "購入・買収費 5%引き／受取通行料 +10%",
+    stats: { buyRate: 0.95, tollGain: 1.10 } },
+  { name: "豊臣秀吉", emoji: "🐒", title: "人たらし",
+    desc: "給料 +30%／支払通行料 10%引き",
+    stats: { salaryRate: 1.30, tollPay: 0.90 } },
+  { name: "徳川家康", emoji: "🦝", title: "泰平の徳",
+    desc: "受取通行料 +15%／無人島脱出率 +25%",
+    stats: { tollGain: 1.15, islandEscape: 0.25 } },
+  { name: "卑弥呼", emoji: "🔮", title: "鬼道の巫女",
+    desc: "ゲージの効き +60%／無人島脱出率 +20%",
+    stats: { gaugePower: 1.6, islandEscape: 0.20 } },
+  { name: "坂本龍馬", emoji: "⛵", title: "風雲児",
+    desc: "ゾロ目率 +8%／給料 +15%",
+    stats: { doubleBoost: 0.08, salaryRate: 1.15 } },
+  { name: "紫式部", emoji: "📜", title: "雅の才媛",
+    desc: "支払通行料 15%引き／購入費 3%引き",
+    stats: { tollPay: 0.85, buyRate: 0.97 } },
 ];
+
+const statOf = (p, key) => (p.stats && key in p.stats ? p.stats[key] : DEFAULT_STATS[key]);
 
 const GROUP_COLORS = {
   A: "#8e44ad", B: "#16a085", C: "#e67e22", D: "#2980b9",
@@ -394,8 +421,23 @@ function highlightTile(i) {
   if (i !== null) $(`tile-${i}`).classList.add("active-tile");
 }
 
-// ---------- サイコロ ----------
-async function rollDice() {
+// ---------- サイコロ（ゲージインパクト） ----------
+// gauge: 0(左=小さい目が出やすい)〜1(右=大きい目が出やすい)。あくまで「出やすくなる」だけ
+function weightedFace(bias, power) {
+  const w = [];
+  for (let f = 1; f <= 6; f++) {
+    w.push(Math.max(0.15, 1 + bias * power * (f - 3.5) / 2.5));
+  }
+  const total = w.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let f = 0; f < 6; f++) {
+    r -= w[f];
+    if (r <= 0) return f + 1;
+  }
+  return 6;
+}
+
+async function rollDice(gauge, p) {
   const d1 = $("die1"), d2 = $("die2");
   d1.classList.add("rolling");
   d2.classList.add("rolling");
@@ -404,7 +446,11 @@ async function rollDice() {
     d2.textContent = DICE_FACES[1 + rand(6)];
     await wait(70);
   }
-  const a = 1 + rand(6), b = 1 + rand(6);
+  const bias = (gauge - 0.5) * 2;
+  const power = statOf(p, "gaugePower");
+  const a = weightedFace(bias, power);
+  let b = weightedFace(bias, power);
+  if (a !== b && Math.random() < statOf(p, "doubleBoost")) b = a; // キャラ能力：ゾロ目補正
   d1.textContent = DICE_FACES[a];
   d2.textContent = DICE_FACES[b];
   d1.classList.remove("rolling");
@@ -412,15 +458,40 @@ async function rollDice() {
   return [a, b];
 }
 
-function waitForRollButton() {
+// 人間用：ゲージを往復させ、ボタンを押した瞬間の位置を返す
+function waitForGaugeStop() {
   return new Promise((resolve) => {
     const btn = $("roll-btn");
+    const wrap = $("gauge-wrap");
+    const cursor = $("gauge-cursor");
+    wrap.classList.remove("hidden");
     btn.classList.remove("hidden");
+    let g = 0, dir = 1;
+    const timer = setInterval(() => {
+      g += dir * 0.035;
+      if (g >= 1) { g = 1; dir = -1; }
+      if (g <= 0) { g = 0; dir = 1; }
+      cursor.style.left = `${g * 100}%`;
+    }, 16);
     btn.onclick = () => {
+      clearInterval(timer);
       btn.classList.add("hidden");
-      resolve();
+      wrap.classList.add("hidden");
+      resolve(g);
     };
   });
+}
+
+// プレイヤー種別に応じてゲージ値を決めてサイコロを振る
+async function rollForPlayer(p) {
+  let gauge;
+  if (p.human) {
+    gauge = await waitForGaugeStop();
+  } else {
+    gauge = Math.random();
+    await wait(900);
+  }
+  return rollDice(gauge, p);
 }
 
 // ---------- 移動 ----------
@@ -431,8 +502,9 @@ async function movePlayer(p, steps) {
     renderTile(prev);
     renderTile(p.pos);
     if (p.pos === 0) {
-      gainMoney(p, SALARY);
-      log(`${p.emoji} ${p.name} がスタートを通過！給料 ${fmt(SALARY)}`);
+      const sal = Math.floor(SALARY * statOf(p, "salaryRate"));
+      gainMoney(p, sal);
+      log(`${p.emoji} ${p.name} がスタートを通過！給料 ${fmt(sal)}`);
     }
     await wait(160);
   }
@@ -442,7 +514,7 @@ async function movePlayer(p, steps) {
 async function teleport(p, dest, salaryOnWrap) {
   const prev = p.pos;
   if (salaryOnWrap && dest <= p.pos) {
-    gainMoney(p, SALARY);
+    gainMoney(p, Math.floor(SALARY * statOf(p, "salaryRate")));
   }
   p.pos = dest;
   renderTile(prev);
@@ -498,7 +570,7 @@ async function resolveCity(p, tile) {
   const i = p.pos;
   if (tile.owner === null) {
     // --- 購入 ---
-    const price = tile.price;
+    const price = Math.floor(tile.price * statOf(p, "buyRate"));
     if (p.money < price) {
       centerMsg(`${tile.name} は ${fmt(price)}。資金不足で買えない…`);
       return;
@@ -529,7 +601,7 @@ async function resolveCity(p, tile) {
   } else if (tile.owner === p.id) {
     // --- 増築 ---
     if (tile.level >= MAX_LEVEL) return;
-    const cost = upgradeCost(tile);
+    const cost = Math.floor(upgradeCost(tile) * statOf(p, "buyRate"));
     if (p.money < cost) return;
     let up;
     const nextName = LEVEL_NAMES[tile.level + 1];
@@ -557,7 +629,8 @@ async function resolveCity(p, tile) {
   } else {
     // --- 通行料 → 買収 ---
     const owner = state.players[tile.owner];
-    const toll = tollOf(tile);
+    // キャラ能力（支払い割引・受取アップ）を反映
+    const toll = Math.floor(tollOf(tile) * statOf(p, "tollPay") * statOf(owner, "tollGain"));
     centerMsg(`${owner.name} の ${tile.name}！通行料 ${fmt(toll)}`);
     log(`${p.emoji} ${p.name} は ${owner.name} の ${tile.name} に到着（通行料 ${fmt(toll)}）`);
     await wait(600);
@@ -565,7 +638,7 @@ async function resolveCity(p, tile) {
     if (!p.alive) return;
 
     if (tile.level < MAX_LEVEL) {
-      const cost = acquireCost(tile);
+      const cost = Math.floor(acquireCost(tile) * statOf(p, "buyRate"));
       if (p.money >= cost) {
         let take;
         if (p.human) {
@@ -718,13 +791,12 @@ async function takeTurn(p) {
   // 無人島
   if (p.islandTurns > 0) {
     centerMsg(`${p.name} は無人島… ゾロ目が出れば脱出！`);
-    if (p.human) await waitForRollButton();
-    else await wait(900);
-    const [a, b] = await rollDice();
-    if (a === b) {
+    const [a, b] = await rollForPlayer(p);
+    const luckyEscape = a !== b && Math.random() < statOf(p, "islandEscape");
+    if (a === b || luckyEscape) {
       p.islandTurns = 0;
-      log(`🏝️ ${p.emoji} ${p.name} はゾロ目で無人島を脱出！`);
-      centerMsg("ゾロ目で脱出成功！");
+      log(`🏝️ ${p.emoji} ${p.name} は${a === b ? "ゾロ目" : "キャラ能力"}で無人島を脱出！`);
+      centerMsg(a === b ? "ゾロ目で脱出成功！" : `${p.name} の能力で脱出成功！`);
       await wait(500);
       await movePlayer(p, a + b);
       p.lastResolved = -1;
@@ -741,12 +813,7 @@ async function takeTurn(p) {
   while (again && p.alive && !state.gameOver) {
     again = false;
     centerMsg("");
-    if (p.human) {
-      await waitForRollButton();
-    } else {
-      await wait(900);
-    }
-    const [a, b] = await rollDice();
+    const [a, b] = await rollForPlayer(p);
     const isDouble = a === b;
     if (isDouble) doubleCount++;
 
@@ -808,7 +875,9 @@ function initSetup() {
   CHARACTERS.forEach((c, i) => {
     const b = document.createElement("button");
     b.className = "char-btn" + (i === 0 ? " selected" : "");
-    b.innerHTML = `${c.emoji}<span class="char-name">${c.name}</span>`;
+    b.innerHTML = `${c.emoji}<span class="char-name">${c.name}</span>` +
+      `<span class="char-title">${c.title}</span>` +
+      `<span class="char-desc">${c.desc}</span>`;
     b.onclick = () => {
       selectedChar = i;
       document.querySelectorAll(".char-btn").forEach((x) => x.classList.remove("selected"));
@@ -833,15 +902,19 @@ function startGame() {
   const colors = ["var(--p0)", "var(--p1)", "var(--p2)", "var(--p3)"];
   const colorHex = ["#e74c3c", "#3498db", "#f1c40f", "#2ecc71"];
 
+  // CPUは残りの偉人からランダムに選出
   const order = [selectedChar];
-  for (let i = 0; i < CHARACTERS.length && order.length < 1 + selectedCpu; i++) {
-    if (i !== selectedChar) order.push(i);
+  const rest = CHARACTERS.map((_, i) => i).filter((i) => i !== selectedChar);
+  while (order.length < 1 + selectedCpu) {
+    order.push(rest.splice(rand(rest.length), 1)[0]);
   }
 
   state.players = order.map((charIdx, id) => ({
     id,
     name: CHARACTERS[charIdx].name,
     emoji: CHARACTERS[charIdx].emoji,
+    title: CHARACTERS[charIdx].title,
+    stats: CHARACTERS[charIdx].stats,
     color: colorHex[id],
     human: id === 0,
     money: START_MONEY,

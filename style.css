@@ -49,16 +49,24 @@ body {
 
 .char-select, .cpu-select { display: flex; gap: 10px; justify-content: center; }
 
+.char-select {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
 .char-btn {
-  font-size: 32px;
-  padding: 8px 14px;
+  font-size: 30px;
+  padding: 8px 6px;
   border: 3px solid #ddd;
   border-radius: 14px;
   background: #fff;
   cursor: pointer;
   transition: transform 0.1s, border-color 0.1s;
 }
-.char-btn .char-name { display: block; font-size: 11px; color: #555; }
+.char-btn .char-name { display: block; font-size: 12px; font-weight: bold; color: #444; margin-top: 2px; }
+.char-btn .char-title { display: block; font-size: 9.5px; color: #b07a1e; font-weight: bold; }
+.char-btn .char-desc { display: block; font-size: 9px; color: #888; line-height: 1.4; margin-top: 2px; }
 .char-btn:hover { transform: scale(1.08); }
 .char-btn.selected { border-color: #e67e22; background: #fff4e0; }
 
@@ -333,6 +341,44 @@ body {
   0% { transform: rotate(-8deg) translateY(-2px); }
   50% { transform: rotate(8deg) translateY(2px); }
   100% { transform: rotate(-8deg) translateY(-2px); }
+}
+
+/* ゲージインパクト */
+#gauge-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 240px;
+  pointer-events: none;
+}
+#gauge-bar {
+  position: relative;
+  height: 20px;
+  border-radius: 12px;
+  border: 3px solid #fff;
+  background: linear-gradient(90deg, #3aa0e8 0%, #58c46a 45%, #f3c93f 70%, #e8472f 100%);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.45), inset 0 2px 3px rgba(255,255,255,0.4);
+  overflow: visible;
+}
+#gauge-cursor {
+  position: absolute;
+  top: -7px;
+  bottom: -7px;
+  left: 0;
+  width: 6px;
+  margin-left: -3px;
+  background: #fff;
+  border: 1.5px solid #333;
+  border-radius: 3px;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+}
+#gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7);
 }
 
 /* 通行料バブル風メッセージ */
