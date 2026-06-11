@@ -58,6 +58,64 @@ const CHARACTERS = [
 
 const statOf = (p, key) => (p.stats && key in p.stats ? p.stats[key] : DEFAULT_STATS[key]);
 
+// ---------- サウンド（Web Audio APIでその場で合成・外部ファイル不使用） ----------
+const SFX = (() => {
+  const ok = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
+  let ctx = null;
+  const ac = () => (ctx ||= new (window.AudioContext || window.webkitAudioContext)());
+
+  function tone(freq, dur, { type = "sine", vol = 0.16, delay = 0, slide = 0 } = {}) {
+    if (!ok) return;
+    const c = ac(), t = c.currentTime + delay;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  function noise(dur, { vol = 0.12, delay = 0, freq = 1800 } = {}) {
+    if (!ok) return;
+    const c = ac(), t = c.currentTime + delay;
+    const len = Math.ceil(c.sampleRate * dur);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const f = c.createBiquadFilter();
+    f.type = "bandpass";
+    f.frequency.value = freq;
+    const g = c.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f).connect(g).connect(c.destination);
+    src.start(t);
+  }
+
+  return {
+    unlock() { if (ok && ac().resume) ac().resume(); },
+    click() { tone(660, 0.06, { type: "square", vol: 0.07 }); },
+    chargeTick(g01) { tone(280 + g01 * 760, 0.045, { type: "square", vol: 0.05 }); },
+    diceRoll() { for (let i = 0; i < 6; i++) noise(0.05, { delay: i * 0.09, vol: 0.1, freq: 2400 }); },
+    diceStop() { tone(170, 0.12, { type: "triangle", vol: 0.25 }); noise(0.07, { vol: 0.18, freq: 700 }); },
+    step() { tone(540, 0.045, { vol: 0.06 }); },
+    coin() { tone(880, 0.09, { vol: 0.11 }); tone(1320, 0.13, { delay: 0.07, vol: 0.11 }); },
+    pay() { tone(440, 0.11, { vol: 0.11 }); tone(320, 0.16, { delay: 0.09, vol: 0.11 }); },
+    buy() { [523, 659, 784].forEach((f, i) => tone(f, 0.13, { delay: i * 0.07, vol: 0.13 })); },
+    takeover() { tone(180, 0.22, { slide: 420, type: "sawtooth", vol: 0.14 }); tone(620, 0.16, { delay: 0.16, vol: 0.13 }); },
+    landmark() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.22, { delay: i * 0.1, vol: 0.15, type: "triangle" })); },
+    double() { [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.13, { delay: i * 0.06, vol: 0.15, type: "square" })); },
+    chance() { tone(680, 0.16, { slide: 540, vol: 0.12 }); },
+    island() { tone(420, 0.34, { slide: -220, vol: 0.14, type: "triangle" }); },
+    bankrupt() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.26, { delay: i * 0.16, vol: 0.15, type: "sawtooth" })); },
+    win() { [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(f, 0.2, { delay: i * 0.12, vol: 0.16, type: "triangle" })); },
+  };
+})();
+
 const GROUP_COLORS = {
   A: "#8e44ad", B: "#16a085", C: "#e67e22", D: "#2980b9",
   E: "#c0392b", F: "#27ae60", G: "#d35400", H: "#f39c12",
@@ -292,6 +350,7 @@ function gainMoney(p, amount) {
   p.money += amount;
   log(`${p.emoji} ${p.name} が ${fmt(amount)} を獲得`);
   floatText(p.pos, `+${fmt(amount)}`, "#ffe96b");
+  SFX.coin();
   renderPlayers();
 }
 
@@ -322,6 +381,8 @@ async function settle(p, amount, receiver) {
   const paid = Math.min(p.money, amount);
   p.money -= paid;
   floatText(p.pos, `-${fmt(paid)}`, "#ff8a7a");
+  SFX.pay();
+  if (paid >= 30000000) shakeScreen(); // 3000万以上の支払いは画面が揺れる
   if (receiver) {
     receiver.money += paid;
     if (receiver.pos !== p.pos) floatText(receiver.pos, `+${fmt(paid)}`, "#ffe96b");
@@ -335,6 +396,9 @@ async function settle(p, amount, receiver) {
 
 function bankrupt(p) {
   p.alive = false;
+  SFX.bankrupt();
+  shakeScreen(true);
+  bigBanner(`💥 ${p.name} 破産…`, "banner-dark");
   for (const t of state.tiles) {
     if (t.type === "city" && t.owner === p.id) {
       if (state.olympicTile === state.tiles.indexOf(t)) state.olympicTile = null;
@@ -477,6 +541,56 @@ function buildingHTML(tile) {
   inner += lmBox("2.5%", "2.5%", 20, 0, "#e8e8e8", "#a8a8a8", "", -36) +
            lmBox("13%", "3%", 7, 13, oc, shade(oc, 0.75), "", -29);
   return `<div class="bld lv${tile.level}">${inner}</div>`;
+}
+
+// ---------- 演出 ----------
+// 画面中央にドンと出るバナー
+function bigBanner(text, cls = "") {
+  if (!document.body) return;
+  const el = document.createElement("div");
+  el.className = `big-banner ${cls}`;
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1400);
+}
+
+// 紙吹雪
+function burst(x, y, count = 24) {
+  if (!document.body) return;
+  const colors = ["#ffd166", "#ef5b40", "#2e7fc2", "#27a05a", "#fff", "#d49a16"];
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement("i");
+    el.className = "particle";
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 70 + Math.random() * 110;
+    el.style.cssText =
+      `left:${x}px;top:${y}px;background:${colors[rand(colors.length)]};` +
+      `--dx:${Math.cos(ang) * dist}px;--dy:${Math.sin(ang) * dist - 60}px;` +
+      `--rot:${rand(720) - 360}deg;animation-duration:${0.7 + Math.random() * 0.5}s`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1300);
+  }
+}
+
+function burstCenter(count = 30) {
+  if (typeof window === "undefined") return;
+  burst(window.innerWidth / 2, window.innerHeight / 2.4, count);
+}
+
+function burstAtTile(tileIdx, count = 20) {
+  const el = $(`tile-${tileIdx}`);
+  if (!el || !el.getBoundingClientRect) return;
+  const r = el.getBoundingClientRect();
+  burst(r.left + r.width / 2, r.top + r.height / 2, count);
+}
+
+// 画面シェイク
+function shakeScreen(strong = false) {
+  const el = $("game-screen");
+  el.classList.remove("shake", "shake-strong");
+  void el.offsetWidth;
+  el.classList.add(strong ? "shake-strong" : "shake");
+  setTimeout(() => el.classList.remove("shake", "shake-strong"), 500);
 }
 
 // 盤面上に浮かぶお金の増減テキスト
@@ -625,6 +739,7 @@ function weightedFace(bias, power) {
 
 async function rollDice(gauge, p) {
   const c1 = $("cube1"), c2 = $("cube2");
+  SFX.diceRoll();
   c1.className = "cube spin-a";
   c2.className = "cube spin-b";
   await wait(650);
@@ -637,11 +752,19 @@ async function rollDice(gauge, p) {
   c2.className = "cube";
   c1.style.transform = DIE_ORIENT[a];
   c2.style.transform = DIE_ORIENT[b];
+  // 着地のポップ
+  for (const id of ["die3d-1", "die3d-2"]) {
+    const w = $(id);
+    w.classList.remove("land");
+    void w.offsetWidth;
+    w.classList.add("land");
+  }
+  SFX.diceStop();
   await wait(480);
   return [a, b];
 }
 
-// 人間用：ゲージを往復させ、ボタンを押した瞬間の位置を返す
+// 人間用：ボタンを長押しするとゲージが往復し、離した瞬間の位置で発射！
 function waitForGaugeStop() {
   return new Promise((resolve) => {
     const btn = $("roll-btn");
@@ -649,19 +772,40 @@ function waitForGaugeStop() {
     const cursor = $("gauge-cursor");
     wrap.classList.remove("hidden");
     btn.classList.remove("hidden");
-    let g = 0, dir = 1;
-    const timer = setInterval(() => {
-      g += dir * 0.035;
-      if (g >= 1) { g = 1; dir = -1; }
-      if (g <= 0) { g = 0; dir = 1; }
-      cursor.style.left = `${g * 100}%`;
-    }, 16);
-    btn.onclick = () => {
+    btn.classList.add("pulse");
+    btn.textContent = "長押しでチャージ → 離して発射！";
+    cursor.style.left = "0%";
+    let g = 0, dir = 1, timer = null, charging = false, tick = 0;
+
+    const begin = (e) => {
+      if (charging) return;
+      charging = true;
+      if (e && e.preventDefault) e.preventDefault();
+      SFX.unlock();
+      btn.classList.remove("pulse");
+      btn.classList.add("charging");
+      wrap.classList.add("charging");
+      timer = setInterval(() => {
+        g += dir * 0.038;
+        if (g >= 1) { g = 1; dir = -1; }
+        if (g <= 0) { g = 0; dir = 1; }
+        cursor.style.left = `${g * 100}%`;
+        if (++tick % 4 === 0) SFX.chargeTick(g);
+      }, 16);
+    };
+    const release = () => {
+      if (!charging) return;
       clearInterval(timer);
+      btn.classList.remove("charging");
+      wrap.classList.remove("charging");
       btn.classList.add("hidden");
       wrap.classList.add("hidden");
+      btn.onpointerdown = null;
+      if (typeof window !== "undefined") window.removeEventListener("pointerup", release);
       resolve(g);
     };
+    btn.onpointerdown = begin;
+    if (typeof window !== "undefined") window.addEventListener("pointerup", release);
   });
 }
 
@@ -689,6 +833,7 @@ async function movePlayer(p, steps) {
       gainMoney(p, sal);
       log(`${p.emoji} ${p.name} がスタートを通過！給料 ${fmt(sal)}`);
     }
+    SFX.step();
     // ランドマークは通過するだけで通行料が発生（着地マスは除く＝着地料は別計算）
     const here = state.tiles[p.pos];
     if (s < steps - 1 && here.type === "city" && here.level === MAX_LEVEL &&
@@ -704,6 +849,10 @@ async function movePlayer(p, steps) {
     await wait(160);
   }
   highlightTile(p.pos);
+  // 着地マスのパルス
+  const landed = $(`tile-${p.pos}`);
+  landed.classList.add("landed");
+  setTimeout(() => landed.classList.remove("landed"), 700);
 }
 
 async function teleport(p, dest, salaryOnWrap) {
@@ -740,6 +889,7 @@ async function resolveTile(p) {
       break;
     case "island":
       p.islandTurns = ISLAND_REST;
+      SFX.island();
       centerMsg(`${p.name} は無人島に漂着… ${ISLAND_REST}回休み！`);
       log(`${p.emoji} ${p.name} は無人島に漂着（${ISLAND_REST}回休み）`);
       break;
@@ -788,6 +938,8 @@ async function resolveCity(p, tile) {
       p.money -= price;
       tile.owner = p.id;
       tile.level = 1;
+      SFX.buy();
+      burstAtTile(i, 10);
       centerMsg(`${p.name} が ${tile.name} を購入！`);
       log(`${p.emoji} ${p.name} が ${tile.name} を ${fmt(price)} で購入`);
       if (ownsFullLine(p, tile.group)) log(`🎉 ${p.name} が ${tile.name} のラインを独占！通行料2倍！`, true);
@@ -820,6 +972,14 @@ async function resolveCity(p, tile) {
     if (up) {
       p.money -= cost;
       tile.level++;
+      if (isLM) {
+        SFX.landmark();
+        bigBanner(`🗼 ${tile.lm} 完成！`, "banner-gold");
+        burstAtTile(i, 28);
+      } else {
+        SFX.buy();
+        burstAtTile(i, 10);
+      }
       centerMsg(isLM ? `🗼 ${tile.name} に ${tile.lm} が完成！` : `${tile.name} に ${nextName} が建った！`);
       log(`${p.emoji} ${p.name} が ${tile.name} に ${nextName} を建設${isLM ? "！もう誰にも奪えない！" : ""}`, isLM);
       renderTile(i);
@@ -862,6 +1022,15 @@ async function resolveCity(p, tile) {
           owner.money += cost;
           tile.owner = p.id;
           tile.level++;
+          SFX.takeover();
+          shakeScreen();
+          if (tile.level === MAX_LEVEL) {
+            SFX.landmark();
+            bigBanner(`🗼 ${tile.lm} 完成！`, "banner-gold");
+            burstAtTile(i, 28);
+          } else {
+            burstAtTile(i, 14);
+          }
           centerMsg(`💥 ${p.name} が ${tile.name} を買収して ${nextName} に建て替えた！`);
           log(`💥 ${p.emoji} ${p.name} が ${owner.name} から ${tile.name} を ${fmt(cost)} で買収し ${nextName} を建設！`, true);
           if (ownsFullLine(p, tile.group)) log(`🎉 ${p.name} が ${tile.name} のラインを独占！`, true);
@@ -875,6 +1044,7 @@ async function resolveCity(p, tile) {
 
 async function resolveChance(p) {
   const card = CHANCE_CARDS[rand(CHANCE_CARDS.length)];
+  SFX.chance();
   centerMsg(`チャンスカード：${card.title}`);
   log(`🎁 ${p.emoji} ${p.name} のチャンスカード「${card.title}」`);
   if (p.human) {
@@ -1002,6 +1172,11 @@ async function takeTurn(p) {
     const luckyEscape = a !== b && Math.random() < statOf(p, "islandEscape");
     if (a === b || luckyEscape) {
       p.islandTurns = 0;
+      if (a === b) {
+        SFX.double();
+        bigBanner("⚡ ゾロ目！脱出成功！", "banner-double");
+        burstCenter();
+      }
       log(`🏝️ ${p.emoji} ${p.name} は${a === b ? "ゾロ目" : "キャラ能力"}で無人島を脱出！`);
       centerMsg(a === b ? "ゾロ目で脱出成功！" : `${p.name} の能力で脱出成功！`);
       await wait(500);
@@ -1022,7 +1197,12 @@ async function takeTurn(p) {
     centerMsg("");
     const [a, b] = await rollForPlayer(p);
     const isDouble = a === b;
-    if (isDouble) doubleCount++;
+    if (isDouble) {
+      doubleCount++;
+      SFX.double();
+      bigBanner("⚡ ゾロ目！！", "banner-double");
+      burstCenter();
+    }
 
     if (doubleCount >= 3) {
       log(`🚨 ${p.emoji} ${p.name} はゾロ目3連続！スピード違反で無人島へ！`, true);
@@ -1061,6 +1241,11 @@ function endGame(reason) {
     return totalAssets(y) - totalAssets(x);
   });
   const winner = ranking[0];
+  SFX.win();
+  bigBanner(`🏆 ${winner.name} の勝利！`, "banner-gold");
+  burstCenter(40);
+  setTimeout(() => burstCenter(30), 400);
+  setTimeout(() => burstCenter(30), 800);
   log(`🏆 ゲーム終了：${reason}`, true);
   log(`🏆 優勝は ${winner.emoji} ${winner.name}！（総資産 ${fmt(totalAssets(winner))}）`, true);
   renderPlayers();
@@ -1101,7 +1286,17 @@ function initSetup() {
     };
   });
 
-  $("start-btn").onclick = startGame;
+  $("start-btn").onclick = () => {
+    SFX.unlock();
+    startGame();
+  };
+
+  // すべてのボタンにクリック音
+  if (typeof document.addEventListener === "function") {
+    document.addEventListener("click", (e) => {
+      if (e.target && e.target.tagName === "BUTTON") SFX.click();
+    });
+  }
 }
 
 function startGame() {
