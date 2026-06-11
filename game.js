@@ -110,7 +110,16 @@ const state = {
 // ---------- ユーティリティ ----------
 const $ = (id) => document.getElementById(id);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const fmt = (n) => n.toLocaleString("ja-JP") + "G";
+// 「12万8875」のような万表記
+const fmt = (n) => {
+  n = Math.floor(n);
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  if (abs < 10000) return sign + abs.toLocaleString("ja-JP");
+  const man = Math.floor(abs / 10000);
+  const rest = abs % 10000;
+  return sign + man.toLocaleString("ja-JP") + "万" + (rest ? String(rest).padStart(4, "0") : "");
+};
 const rand = (n) => Math.floor(Math.random() * n);
 
 function log(msg, strong = false) {
@@ -284,6 +293,14 @@ function bankrupt(p) {
 function renderBoard() {
   const board = $("board");
   board.innerHTML = "";
+  // 中央の池
+  const pond = document.createElement("div");
+  pond.id = "pond";
+  pond.style.gridRow = "2 / 9";
+  pond.style.gridColumn = "2 / 9";
+  pond.innerHTML = `<span class="pond-logo">GET RICH</span><span class="pond-sub">REVIVAL</span>`;
+  board.appendChild(pond);
+
   state.tiles.forEach((tile, i) => {
     const div = document.createElement("div");
     div.className = "tile";
@@ -300,39 +317,42 @@ function renderTile(i) {
   const tile = state.tiles[i];
   const div = $(`tile-${i}`);
   div.className = "tile";
-  let html = "";
+  let inner = "";
+  let stand = "";
+  let topStyle = "";
 
   if (tile.type === "city") {
-    html += `<div class="group-bar" style="background:${GROUP_COLORS[tile.group]}"></div>`;
-    html += `<div class="tile-name">${tile.name}</div>`;
+    div.classList.add("city");
+    const c = GROUP_COLORS[tile.group];
+    topStyle = `background:linear-gradient(180deg, ${c}, ${c} 55%, rgba(0,0,0,0.25))`;
+    inner += `<div class="tile-name">${tile.name}</div>`;
     if (tile.owner !== null) {
       const owner = state.players[tile.owner];
-      div.style.borderColor = owner.color;
       div.classList.add("owned");
-      html += `<div class="tile-build">${LEVEL_ICONS[tile.level]}</div>`;
-      html += `<div class="tile-sub">通行 ${fmt(tollOf(tile))}</div>`;
-      html += `<div class="owner-dot" style="background:${owner.color}"></div>`;
+      topStyle += `;outline-color:${owner.color}`;
+      inner += `<div class="tile-sub">${fmt(tollOf(tile))}</div>`;
+      inner += `<div class="owner-dot" style="background:${owner.color}"></div>`;
+      stand += `<span class="build lv${tile.level}">${LEVEL_ICONS[tile.level]}</span>`;
     } else {
-      div.style.borderColor = "transparent";
-      html += `<div class="tile-sub">${fmt(tile.price)}</div>`;
+      inner += `<div class="tile-sub">${fmt(tile.price)}</div>`;
     }
-    if (state.olympicTile === i) html += `<div class="olympic-mark">🔥</div>`;
+    if (state.olympicTile === i) inner += `<div class="olympic-mark">🔥</div>`;
   } else {
     const icons = { start: "🏁", chance: "🎁", island: "🏝️", olympic: "🔥", travel: "✈️", tax: "🏛️" };
     div.classList.add(["start", "island", "olympic", "travel"].includes(tile.type) ? "corner" : "special");
-    html += `<div class="group-bar" style="background:#aaa"></div>`;
-    html += `<div class="tile-name">${tile.name}</div>`;
-    html += `<div class="tile-build">${icons[tile.type]}</div>`;
+    inner += `<div class="tile-name">${tile.name}</div>`;
+    inner += `<div class="tile-icon">${icons[tile.type]}</div>`;
   }
 
-  html += `<div class="tile-tokens">` +
-    state.players
-      .filter((p) => p.alive && p.pos === i)
-      .map((p) => `<span>${p.emoji}</span>`)
-      .join("") +
-    `</div>`;
+  const tokens = state.players
+    .filter((p) => p.alive && p.pos === i)
+    .map((p) => p.emoji)
+    .join("");
+  if (tokens) stand += `<span class="tokens">${tokens}</span>`;
 
-  div.innerHTML = html;
+  div.innerHTML =
+    `<div class="tile-top" style="${topStyle}">${inner}</div>` +
+    `<div class="stand">${stand}</div>`;
 }
 
 function renderAllTokens() {
@@ -340,22 +360,31 @@ function renderAllTokens() {
 }
 
 function renderPlayers() {
-  const area = $("players-area");
-  area.innerHTML = "";
+  const hud = $("hud");
+  hud.innerHTML = "";
+  // 総資産順位（破産者は最下位）
+  const ranked = [...state.players].sort((a, b) => {
+    if (a.alive !== b.alive) return a.alive ? -1 : 1;
+    return totalAssets(b) - totalAssets(a);
+  });
   state.players.forEach((p, idx) => {
+    const rank = ranked.indexOf(p) + 1;
     const card = document.createElement("div");
-    card.className = "player-card";
-    card.style.borderLeftColor = p.color;
+    card.className = `hud-card c${idx}`;
     if (idx === state.currentIdx && p.alive && !state.gameOver) card.classList.add("current");
     if (!p.alive) card.classList.add("dead");
-    const cities = playerCities(p).length;
-    const status = !p.alive ? "💥 破産" : p.islandTurns > 0 ? `🏝️ あと${p.islandTurns}回休み` : "";
+    const status = !p.alive ? "💥 破産"
+      : p.islandTurns > 0 ? `🏝️ ${p.islandTurns}回休み`
+      : p.human ? "あなた" : "CPU";
     card.innerHTML = `
-      <div class="pc-head"><span class="pc-emoji">${p.emoji}</span>${p.name}
-        <span class="pc-tag">${p.human ? "あなた" : "CPU"}</span></div>
-      <div class="pc-money">${fmt(p.money)}</div>
-      <div class="pc-sub">🏙️ ${cities}都市 ／ 総資産 ${fmt(totalAssets(p))} ${status}</div>`;
-    area.appendChild(card);
+      <div class="hud-rank r${rank}">${rank}位</div>
+      <div class="hud-avatar" style="border-color:${p.color}">${p.emoji}</div>
+      <div class="hud-info">
+        <div class="hud-name">${p.name}<span>${status}</span></div>
+        <div class="hud-money">💵 ${fmt(p.money)}</div>
+        <div class="hud-assets">総資産 ${fmt(totalAssets(p))} ／ 🏙️ ${playerCities(p).length}都市</div>
+      </div>`;
+    hud.appendChild(card);
   });
   $("round-info").textContent = `ラウンド ${Math.min(state.round, MAX_ROUNDS)} / ${MAX_ROUNDS}`;
 }
