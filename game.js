@@ -449,19 +449,33 @@ const LM_BUILDERS = {
     lmBox("4%","3.5%",12,58,"#e84830","#a82a16"),
 };
 
+// 色を暗くする（壁面の陰影用）
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.floor(((n >> 16) & 255) * f);
+  const g = Math.floor(((n >> 8) & 255) * f);
+  const b = Math.floor((n & 255) * f);
+  return `rgb(${r},${g},${b})`;
+}
+
 // レベル別の建物（1=別荘 / 2=ビル / 3=都市固有のランドマーク）
+// 別荘の屋根とビルの屋上はオーナーのプレイヤーカラーに塗る
 function buildingHTML(tile) {
   if (tile.level <= 0 || tile.owner === null) return "";
+  const oc = state.players[tile.owner].color;
   let inner = "";
   if (tile.level === 1) {
-    inner = lmBox("42%", "36%", 16, 0, "#f3e6c8", "#cdb88c") +
-            lmBox("52%", "46%", 8, 16, "#e85a48", "#a82e1e");
+    inner = lmBox("34%", "30%", 14, 0, "#f3e6c8", "#cdb88c") +
+            lmBox("44%", "40%", 8, 14, oc, shade(oc, 0.68));
   } else if (tile.level === 2) {
-    inner = lmBox("38%", "32%", 30, 0, "#b8cdd8", "#4f7fa6", "win") +
-            lmBox("28%", "24%", 4, 30, "#e8eef2", "#b9c5cd");
+    inner = lmBox("36%", "30%", 30, 0, "#b8cdd8", "#4f7fa6", "win") +
+            lmBox("27%", "23%", 5, 30, oc, shade(oc, 0.68));
   } else {
     inner = (LM_BUILDERS[tile.lmKey] || LM_BUILDERS.tokyoTower)();
   }
+  // 所有者の旗（全レベル共通・タイル手前の角に立てる）
+  inner += lmBox("2.5%", "2.5%", 20, 0, "#e8e8e8", "#a8a8a8", "", -36) +
+           lmBox("13%", "3%", 7, 13, oc, shade(oc, 0.75), "", -29);
   return `<div class="bld lv${tile.level}">${inner}</div>`;
 }
 
