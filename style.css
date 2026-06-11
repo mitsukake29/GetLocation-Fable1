@@ -1,0 +1,335 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --p0: #e74c3c;
+  --p1: #3498db;
+  --p2: #f1c40f;
+  --p3: #2ecc71;
+}
+
+body {
+  font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  background: linear-gradient(135deg, #1a5c3a 0%, #2d8659 100%);
+  color: #333;
+  min-height: 100vh;
+}
+
+.hidden { display: none !important; }
+
+/* ===== オーバーレイ / セットアップ ===== */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.setup-box {
+  background: #fffef5;
+  border-radius: 20px;
+  padding: 32px 40px;
+  max-width: 560px;
+  width: 92%;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+
+.setup-box h1 { color: #1a5c3a; margin-bottom: 8px; }
+.subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
+
+.setup-row { margin-bottom: 18px; }
+.setup-row > label { display: block; font-weight: bold; margin-bottom: 8px; color: #444; }
+
+.char-select, .cpu-select { display: flex; gap: 10px; justify-content: center; }
+
+.char-btn {
+  font-size: 32px;
+  padding: 8px 14px;
+  border: 3px solid #ddd;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.1s;
+}
+.char-btn .char-name { display: block; font-size: 11px; color: #555; }
+.char-btn:hover { transform: scale(1.08); }
+.char-btn.selected { border-color: #e67e22; background: #fff4e0; }
+
+.cpu-btn {
+  font-size: 16px;
+  padding: 8px 22px;
+  border: 3px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+.cpu-btn.selected { border-color: #e67e22; background: #fff4e0; font-weight: bold; }
+
+.big-btn {
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  background: linear-gradient(180deg, #ff9f43, #e67e22);
+  border: none;
+  border-radius: 14px;
+  padding: 12px 36px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #b35900;
+  transition: transform 0.08s;
+}
+.big-btn:hover { transform: translateY(-2px); }
+.big-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b35900; }
+
+.howto { font-size: 11.5px; color: #888; margin-top: 18px; line-height: 1.8; text-align: left; }
+
+/* ===== ゲーム画面 ===== */
+#game-screen {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  max-width: 1280px;
+  margin: 0 auto;
+  align-items: flex-start;
+}
+
+#board-wrap { flex: 1 1 auto; position: relative; }
+
+#board {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  gap: 3px;
+  aspect-ratio: 1 / 1;
+  max-height: calc(100vh - 28px);
+  margin: 0 auto;
+  background: #14482d;
+  border-radius: 16px;
+  padding: 6px;
+}
+
+/* ===== タイル ===== */
+.tile {
+  background: #fdfaf0;
+  border-radius: 6px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 10px;
+  min-width: 0;
+  border: 2px solid transparent;
+}
+.tile.corner { background: #ffe9b3; }
+.tile.special { background: #e8f4fd; }
+.tile.active-tile { border-color: #ff3b30; box-shadow: 0 0 8px #ff3b30; }
+
+.tile .group-bar { height: 6px; flex: none; }
+.tile .tile-name {
+  font-weight: bold;
+  text-align: center;
+  padding: 1px 2px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile .tile-sub {
+  text-align: center;
+  font-size: 9px;
+  color: #777;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tile .tile-build { text-align: center; font-size: 11px; line-height: 1; }
+.tile .tile-tokens {
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  gap: 1px;
+  font-size: 13px;
+  padding-bottom: 1px;
+}
+
+.tile .owner-dot {
+  position: absolute;
+  top: 8px;
+  right: 2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 2px rgba(0,0,0,0.5);
+}
+
+.tile .olympic-mark {
+  position: absolute;
+  top: 7px;
+  left: 2px;
+  font-size: 10px;
+}
+
+/* ===== 中央パネル ===== */
+#center-panel {
+  position: absolute;
+  inset: 12.5%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+}
+#center-panel button { pointer-events: auto; }
+
+#center-logo {
+  font-size: 30px;
+  font-weight: 900;
+  color: #ffe9b3;
+  text-shadow: 2px 3px 0 #0a2e1b;
+  letter-spacing: 3px;
+  text-align: center;
+  line-height: 1;
+}
+#center-logo span { font-size: 14px; letter-spacing: 8px; color: #ffd166; }
+
+#round-info {
+  color: #cfe8d8;
+  font-size: 13px;
+  background: rgba(0,0,0,0.25);
+  padding: 3px 14px;
+  border-radius: 20px;
+}
+
+#turn-banner {
+  font-size: 17px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+}
+
+#dice-area { display: flex; gap: 10px; }
+.die {
+  font-size: 44px;
+  background: #fff;
+  border-radius: 12px;
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+  line-height: 1;
+}
+.die.rolling { animation: shake 0.1s infinite; }
+@keyframes shake {
+  0% { transform: rotate(-8deg); }
+  50% { transform: rotate(8deg); }
+  100% { transform: rotate(-8deg); }
+}
+
+#center-msg {
+  color: #ffe9b3;
+  font-size: 14px;
+  font-weight: bold;
+  text-align: center;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+  min-height: 20px;
+  max-width: 90%;
+}
+
+/* ===== サイドパネル ===== */
+#side-panel {
+  width: 290px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 28px);
+}
+
+.player-card {
+  background: #fffef5;
+  border-radius: 12px;
+  padding: 8px 12px;
+  border-left: 6px solid #ccc;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  transition: transform 0.15s;
+}
+.player-card.current { transform: scale(1.04); outline: 3px solid #ffd166; }
+.player-card.dead { opacity: 0.45; filter: grayscale(1); }
+
+.player-card .pc-head { display: flex; align-items: center; gap: 6px; font-weight: bold; }
+.player-card .pc-emoji { font-size: 20px; }
+.player-card .pc-tag { font-size: 10px; color: #999; font-weight: normal; }
+.player-card .pc-money { font-size: 16px; font-weight: bold; color: #1a5c3a; }
+.player-card .pc-sub { font-size: 11px; color: #888; }
+
+#log-area {
+  background: rgba(255, 254, 245, 0.95);
+  border-radius: 12px;
+  padding: 10px;
+  flex: 1 1 auto;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#log-title { font-weight: bold; font-size: 13px; margin-bottom: 6px; color: #1a5c3a; }
+#log { font-size: 12px; overflow-y: auto; flex: 1; line-height: 1.65; }
+#log .log-strong { font-weight: bold; color: #c0392b; }
+
+/* ===== モーダル ===== */
+.modal-box {
+  background: #fffef5;
+  border-radius: 18px;
+  padding: 24px 30px;
+  max-width: 480px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+#modal-title { font-size: 19px; font-weight: bold; color: #1a5c3a; margin-bottom: 10px; }
+#modal-body { font-size: 14px; color: #555; margin-bottom: 18px; line-height: 1.7; }
+#modal-body select {
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 2px solid #ccc;
+  margin-top: 8px;
+  max-width: 100%;
+}
+#modal-body .card-art { font-size: 48px; margin: 6px 0; }
+#modal-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+.modal-btn {
+  font-size: 15px;
+  font-weight: bold;
+  padding: 10px 26px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(180deg, #ff9f43, #e67e22);
+  box-shadow: 0 3px 0 #b35900;
+}
+.modal-btn.secondary {
+  background: linear-gradient(180deg, #b0b8bf, #8e979e);
+  box-shadow: 0 3px 0 #5f676d;
+}
+.modal-btn:active { transform: translateY(2px); box-shadow: none; }
+
+/* ===== レスポンシブ ===== */
+@media (max-width: 900px) {
+  #game-screen { flex-direction: column; }
+  #side-panel { width: 100%; max-height: none; }
+  #players-area { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .player-card { margin: 0; }
+  #board { max-height: none; }
+  .tile { font-size: 8px; }
+  .tile .tile-sub { font-size: 7px; }
+  #center-logo { font-size: 18px; }
+  .die { width: 40px; height: 40px; font-size: 30px; }
+}

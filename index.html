@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ゲットリッチ・リバイバル | ボードゲーム</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- セットアップ画面 -->
+<div id="setup-screen" class="overlay">
+  <div class="setup-box">
+    <h1>🎲 ゲットリッチ・リバイバル</h1>
+    <p class="subtitle">サイコロを振って世界の都市を買い占めろ！<br>ライバルを破産させるか、30ターン後に総資産1位で勝利！</p>
+    <div class="setup-row">
+      <label>あなたのキャラクター</label>
+      <div id="char-select" class="char-select"></div>
+    </div>
+    <div class="setup-row">
+      <label>CPU対戦相手の数</label>
+      <div class="cpu-select">
+        <button class="cpu-btn" data-cpu="1">1人</button>
+        <button class="cpu-btn selected" data-cpu="2">2人</button>
+        <button class="cpu-btn" data-cpu="3">3人</button>
+      </div>
+    </div>
+    <button id="start-btn" class="big-btn">ゲームスタート！</button>
+    <p class="howto">
+      🏙️ 止まった都市は購入できる ／ 自分の都市で増築 ／ 他人の都市は通行料を払えば<b>買収</b>も可能<br>
+      🎨 同じ色の都市3つを独占すると通行料2倍 ／ 🗼 ランドマークは買収されない<br>
+      🔥 オリンピック開催都市は通行料2倍 ／ 🏝️ 無人島は2回休み（ゾロ目で脱出）
+    </p>
+  </div>
+</div>
+
+<!-- メインゲーム -->
+<div id="game-screen" class="hidden">
+  <div id="board-wrap">
+    <div id="board"></div>
+    <div id="center-panel">
+      <div id="center-logo">GET RICH<br><span>REVIVAL</span></div>
+      <div id="round-info">ラウンド 1 / 30</div>
+      <div id="turn-banner"></div>
+      <div id="dice-area">
+        <span class="die" id="die1">🎲</span>
+        <span class="die" id="die2">🎲</span>
+      </div>
+      <button id="roll-btn" class="big-btn hidden">サイコロを振る！</button>
+      <div id="center-msg"></div>
+    </div>
+  </div>
+  <div id="side-panel">
+    <div id="players-area"></div>
+    <div id="log-area">
+      <div id="log-title">📜 ゲームログ</div>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 汎用モーダル -->
+<div id="modal" class="overlay hidden">
+  <div class="modal-box">
+    <div id="modal-title"></div>
+    <div id="modal-body"></div>
+    <div id="modal-buttons"></div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
